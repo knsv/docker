@@ -39,6 +39,18 @@
 //
 // So let's get started!
 
+function unescape(html) {
+    return html.replace(/&([#\w]+);/g, function(_, n) {
+        n = n.toLowerCase();
+        if (n === 'colon') return ':';
+        if (n.charAt(0) === '#') {
+            return n.charAt(1) === 'x'
+                ? String.fromCharCode(parseInt(n.substring(2), 16))
+                : String.fromCharCode(+n.substring(1));
+        }
+        return '';
+    });
+}
 
 // ## Node Modules
 // Include all the necessay node modules.
@@ -50,8 +62,10 @@ var mkdirp = require('mkdirp'),
   spawn = require('child_process').spawn,
   watchr = require('watchr'),
   pygmentize = require('pygmentize-bundled'),
-  showdown = require('../lib/showdown').Showdown;
-
+  marked = require('marked');
+  marked.setOptions({
+//      sanitize: true
+  })
 
 // Polyfill `fs.exists` for node <= 0.6
 if(typeof fs.exists != 'function') fs.exists = path.exists;
@@ -398,8 +412,9 @@ Docker.prototype.generateDoc = function(infilename, cb){
       self.addFileToTree(infilename);
       switch(self.languages[lang].type){
         case 'markdown':
-          self.renderMarkdownHtml(data, filename, cb);
-          break;
+        var sections = self.parseSections(data, lang);
+        self.renderMarkdownHtml(data, filename, cb);
+        break;
         default:
         case 'code':
           var sections = self.parseSections(data, lang);
@@ -492,7 +507,7 @@ Docker.prototype.parseSections = function(data, language){
   var jsDocData;
 
   function md(a, stripParas){
-    var h = showdown.makeHtml(a.replace(/(^\s*|\s*$)/,''));
+    var h = marked(a.replace(/(^\s*|\s*$)/,''));
     return stripParas ? h.replace(/<\/?p>/g,'') : h;
   }
 
@@ -1061,7 +1076,7 @@ Docker.prototype.highlight = function(sections, language, cb){
     var bits = out.split(/^<span[^>]*>[^<]+(?:<\/span><span[^>]*>)?----DIVIDER----[^<]*<\/span>$/gm);
     for(var i = 0; i < sections.length; i += 1){
       sections[i].codeHtml = '<div class="highlight"><pre>' + bits[i] + '</pre></div>';
-      sections[i].docHtml = showdown.makeHtml(sections[i].docs);
+      sections[i].docHtml = marked(sections[i].docs);
     }
     self.processDocCodeBlocks(sections, cb);
   });
@@ -1100,21 +1115,20 @@ Docker.prototype.processDocCodeBlocks = function(sections, cb){
 /**
  * ## Docker.prototype.extractDocCode
  *
- * Extract and highlight code blocks in formatted HTML output from showdown
+ * Extract and highlight code blocks in formatted HTML output from marked
  *
  * @param {string} html The HTML to process
  * @param {function} cb Callback function to fire when done
  */
 Docker.prototype.extractDocCode = function(html, cb){
-
   // We'll store all extracted code blocks, along with information, in this array
   var codeBlocks = [];
 
-  // Search in the HTML for any code tag with a language set (in the format that showdown returns)
-  html = html.replace(/<pre><code(\slanguage='([a-z]*)')?>([^<]*)<\/code><\/pre>/g, function(wholeMatch, langBlock, language, block){
+  // Search in the HTML for any code tag with a language set (in the format that marked returns)
+  html = html.replace(/<pre><code(\sclass="lang-([a-z-]*)")?>([^<]*)<\/code><\/pre>/g, function(wholeMatch, langBlock, language, block){
     if(langBlock === '' || language === '') return "<div class='highlight'>" + wholeMatch + '</div>';
     // Unescape these HTML entities because they'll be re-escaped by pygments
-    block = block.replace(/&gt;/g,'>').replace(/&lt;/g,'<').replace(/&amp;/g,'&');
+    block = unescape(block);
 
     // Store the code block away in `codeBlocks` and leave a flag in the original text.
     return "\n\n~C" + codeBlocks.push({
@@ -1298,8 +1312,8 @@ Docker.prototype.renderCodeHtml = function(sections, filename, cb){
  * @param {function} cb Callback function to fire when we're done
  */
 Docker.prototype.renderMarkdownHtml = function(content, filename, cb){
-  // Run the markdown through *showdown*
-  content = showdown.makeHtml(content);
+  // Run the markdown through *marked*
+  content = marked(content);
 
   this.extractDocCode(content, function(content){
 

@@ -3,3 +3,4 @@ doc
 test
 .sass-cache
 deploy-checklist
+.DS_Store
