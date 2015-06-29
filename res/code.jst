@@ -4,7 +4,12 @@
     <% if(sections[0] && !sections[0].docHtml.match(/<h[12]>/)){ %>
       <tr>
         <td class="docs">
-          <h1><%= title %></h1>
+        <div class="pilwrap" id="<%= title %>">
+          <h1>
+              <a href="#<%= title %>" name="<%= title %>" class="pilcrow">&#182;</a>
+              <%= title %>
+          </h1>
+        </div>
         </td>
         <td class="code highlight"></td>
       </tr>

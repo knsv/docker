@@ -63,7 +63,7 @@ var mkdirp = require('mkdirp'),
   watchr = require('watchr'),
   pygmentize = require('pygmentize-bundled'),
   marked = require('marked');
-var hasMermaid, renderer;
+var hasMermaid, renderer, headings = [];
 hasMermaid = false;
 
 renderer = new marked.Renderer();
@@ -79,13 +79,23 @@ renderer.code = function (code, language) {
 
         }
         html += '<div class="mermaid">'+code+'</div>';
-        console.log('Detected mermaid block: ' + html);
         return html;
     } else {
-        console.log('Detected regular code block');
         return this.defaultCode(code, language);
     }
 };
+
+renderer.heading = function (text, level,headingId) {
+
+    var escapedText = text.toLowerCase().replace(/[^\w]+/g, '-');
+
+    headings.push({ id: headingId, headingId: headingId, text: text, level: level });
+
+    return '<div class="pilwrap" id="' + headingId + '">\n  <h' + level + '>'+
+    '\n    <a href="#' + headingId + '" name="' + headingId + '" class="pilcrow">&#182;</a>\n    ' +
+    text + '</h' + level + '>\n</div>\n';
+};
+
 marked.setOptions({
 //      sanitize: true
     renderer:renderer
@@ -407,6 +417,7 @@ Docker.prototype.processNextFile = function(){
   // If we still have files on the queue, process the first one
   if(this.files.length > 0){
     this.generateDoc(this.files.shift(), function(){
+        headings = [];
       self.processNextFile();
     });
   }else{
@@ -427,6 +438,7 @@ Docker.prototype.generateDoc = function(infilename, cb){
   var self = this;
   hasMermaid = false;
   this.running = true;
+
   filename = path.resolve(this.inDir, infilename);
   this.decideWhetherToProcess(filename, function(shouldProcess){
     if(!shouldProcess) return cb();
@@ -1229,7 +1241,7 @@ Docker.prototype.addAnchors = function(docHtml, idx, headings){
       headings.push({ id: id, headingId: headingId, text: middle.replace(/<[^>]*>/g,''), level: level });
       return '\n<div class="pilwrap" id="' + headingId + '">\n  '+
                 start +
-                '\n    <a href="#' + headingId + '" name="' + headingId + '" class="pilcrow">&#182;</a>\n    ' +
+                '\n    <a href="#' + headingId + '" name="' + headingId + '" class="pilcrow">&#182;</a>\n    XYZ' +
                 middle + '\n  ' +
                 end +
               '\n</div>\n';
@@ -1283,8 +1295,6 @@ Docker.prototype.renderCodeHtml = function(sections, filename, cb){
   // Decide which path to store the output on.
   var outFile = this.outFile(filename);
 
-  var headings = [];
-
   // Calculate the location of the input root relative to the output file.
   // This is necessary so we can link to the stylesheet in the output HTML using
   // a relative href rather than an absolute one
@@ -1301,6 +1311,7 @@ Docker.prototype.renderCodeHtml = function(sections, filename, cb){
 
     if(this.lineNums) sections[i].codeHtml = this.addLineNumbers(sections[i].codeHtml, sections[i].firstCodeLine);
   }
+    headings.unshift({ id: path.basename(filename), headingId: path.basename(filename), text: path.basename(filename), level: 1 })
 
   // Render the html file using our template
   var content = this.codeFileTemplate({
@@ -1341,7 +1352,7 @@ Docker.prototype.renderMarkdownHtml = function(content, filename, cb){
 
   this.extractDocCode(content, function(content){
 
-    var headings = [];
+
 
     // Add anchors to all headings
     content = this.addAnchors(content,0, headings);
