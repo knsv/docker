@@ -63,9 +63,33 @@ var mkdirp = require('mkdirp'),
   watchr = require('watchr'),
   pygmentize = require('pygmentize-bundled'),
   marked = require('marked');
-  marked.setOptions({
+var hasMermaid, renderer;
+hasMermaid = false;
+
+renderer = new marked.Renderer();
+renderer.defaultCode = renderer.code;
+renderer.code = function (code, language) {
+    var html;
+    if (language === 'mermaid') {
+        html = '';
+        if (!hasMermaid) {
+            hasMermaid = true;
+            html += '';
+            html += '<script>mermaid.initialize({startOnLoad:true});</script>';
+
+        }
+        html += '<div class="mermaid">'+code+'</div>';
+        console.log('Detected mermaid block: ' + html);
+        return html;
+    } else {
+        console.log('Detected regular code block');
+        return this.defaultCode(code, language);
+    }
+};
+marked.setOptions({
 //      sanitize: true
-  })
+    renderer:renderer
+});
 
 // Polyfill `fs.exists` for node <= 0.6
 if(typeof fs.exists != 'function') fs.exists = path.exists;
@@ -401,6 +425,7 @@ Docker.prototype.processNextFile = function(){
  */
 Docker.prototype.generateDoc = function(infilename, cb){
   var self = this;
+  hasMermaid = false;
   this.running = true;
   filename = path.resolve(this.inDir, infilename);
   this.decideWhetherToProcess(filename, function(shouldProcess){
@@ -505,7 +530,6 @@ Docker.prototype.parseSections = function(data, language){
   var inMultiLineComment = false;
   var multiLine = '';
   var jsDocData;
-
   function md(a, stripParas){
     var h = marked(a.replace(/(^\s*|\s*$)/,''));
     return stripParas ? h.replace(/<\/?p>/g,'') : h;
